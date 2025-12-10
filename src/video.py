@@ -154,10 +154,12 @@ async def get_video(videoloc, mode, sorted_filelist=False):
     filelist = []
     videoloc = os.path.abspath(videoloc)
     if os.path.isdir(videoloc):
-        globlist = glob.glob1(videoloc, "*.mkv") + glob.glob1(videoloc, "*.mp4") + glob.glob1(videoloc, "*.ts")
+        # breaking the original way to handle files beacause we need dirs/subdirs, be carreful when uploading other than TOS
+        # full directory torrent creation is handled in tracker file, we need this only to get metas.
+        globlist = glob.glob(f"{videoloc}{os.sep}**{os.sep}*.mkv", recursive=True) + glob.glob(f"{videoloc}{os.sep}**{os.sep}*.mp4", recursive=True) + glob.glob(f"{videoloc}{os.sep}**{os.sep}*.ts", recursive=True)
         for file in globlist:
             if not file.lower().endswith('sample.mkv') or "!sample" in file.lower():
-                filelist.append(os.path.abspath(f"{videoloc}{os.sep}{file}"))
+                filelist.append(file)
                 filelist = sorted(filelist)
                 if len(filelist) > 1:
                     for f in filelist:

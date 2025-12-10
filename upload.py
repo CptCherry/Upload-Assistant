@@ -648,12 +648,20 @@ async def process_meta(meta, base_dir, bot=None):
                     await create_base_from_existing_torrent(reuse_torrent, meta['base_dir'], meta['uuid'])
 
             if meta['nohash'] is False and reuse_torrent is None:
-                create_torrent(meta, Path(meta['path']), "BASE")
+                # create torrent if we are not uploading a directory to TOS only
+                if meta['trackers'] == ['TOS'] and meta['isdir']:
+                    console.print("[yellow]Uploading a directory to TOS only, skipping .torrent creation")
+                else:
+                    create_torrent(meta, Path(meta['path']), "BASE")
             if meta['nohash']:
                 meta['client'] = "none"
 
         elif os.path.exists(torrent_path) and meta.get('rehash', False) is True and meta['nohash'] is False:
-            create_torrent(meta, Path(meta['path']), "BASE")
+            # create torrent if we are not uploading a directory to TOS only
+            if meta['trackers'] == ['TOS'] and meta['isdir']:
+                console.print("[yellow]Uploading a directory to TOS only, skipping .torrent creation")
+            else:
+                create_torrent(meta, Path(meta['path']), "BASE")
 
         if int(meta.get('randomized', 0)) >= 1:
             if not meta['mkbrr']:
