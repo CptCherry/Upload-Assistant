@@ -1,4 +1,4 @@
-# Upload Assistant © 2025 Audionut — Licensed under UAPL v1.0
+# Upload Assistant © 2025 Audionut & wastaken7 — Licensed under UAPL v1.0
 # -*- coding: utf-8 -*-
 # import discord
 import aiofiles
@@ -267,6 +267,20 @@ class ANT:
             # User description
             desc_parts.append(user_desc)
 
+        # Disc menus screenshots
+        menu_images = meta.get("menu_images", [])
+        if menu_images:
+            desc_parts.append(await builder.menu_screenshot_header(meta, self.tracker))
+
+            # Disc menus screenshots
+            menu_screenshots_block = ""
+            for image in menu_images:
+                menu_raw_url = image.get("raw_url")
+                if menu_raw_url:
+                    menu_screenshots_block += f"[img]{menu_raw_url}[/img] "
+            if menu_screenshots_block:
+                desc_parts.append(f"[align=center]{menu_screenshots_block}[/align]")
+
         # Tonemapped Header
         desc_parts.append(await builder.get_tonemapped_header(meta, self.tracker))
 
@@ -340,7 +354,8 @@ class ANT:
                                 'size': int(each.get('size', 0)),
                                 'link': each.get('guid', ''),
                                 'flags': each.get('flags', []),
-                                'file_count': each.get('fileCount', 0)
+                                'file_count': each.get('fileCount', 0),
+                                'download': each.get('link', '').replace('&amp;', '&'),
                             }
                             dupes.append(result)
 

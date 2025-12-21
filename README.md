@@ -1,7 +1,7 @@
-[![Create and publish a Docker image](https://github.com/Audionut/Upload-Assistant/actions/workflows/docker-image.yml/badge.svg?branch=master)](https://github.com/Audionut/Upload-Assistant/actions/workflows/docker-image.yml)
+[![Create and publish a Docker image](https://github.com/Audionut/Upload-Assistant/actions/workflows/docker-image.yml/badge.svg?branch=master)](https://github.com/Audionut/Upload-Assistant/actions/workflows/docker-image.yml) [![Test run (Master Branch)](https://img.shields.io/github/actions/workflow/status/Audionut/Upload-Assistant/test-run.yaml?branch=master&label=Test%20run%20(Master%20Branch%202025-12-21%2000:45%20UTC))](https://github.com/Audionut/Upload-Assistant/actions/workflows/test-run.yaml?query=branch%3Amaster)
 
 **This fork intend to add the old school tracker to audionut Upload-Assistant.**
-**This script is not the original script and introduce differences in generated torrent files to match theoldschool rules.**
+**This script is not the original script and introduce few differences in generated torrent files to match theoldschool rules.**
 **It may not work on tracker wanting files only in .torrent**
 
 
@@ -64,9 +64,10 @@ Many thanks to all who have contributed.
 |SkipTheCommerials|STC|SpeedApp|SPD|
 |Swarmazon|SN|TorrentHR|THR|
 |Torrenteros|TTR|TorrentLeech|TL|
-|ToTheGlory|TTG|TVChaosUK|TVC|
-|ULCX|ULCX|UTOPIA|UTP|
-|YOiNKED|YOINK|YUSCENE|YUS|
+|The Leach Zone|TLZ|ToTheGlory|TTG|
+|TVChaosUK|TVC|ULCX|ULCX|
+|UTOPIA|UTP|YOiNKED|YOINK|
+|YUSCENE|YUS|||
 |TheOldSchool|TOS|||
 
 ## **Setup:**
