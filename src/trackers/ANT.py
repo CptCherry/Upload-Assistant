@@ -124,7 +124,7 @@ class ANT:
             create_torrent(meta, Path(meta['path']), "ANT", tracker_url=tracker_url)
             torrent_filename = "ANT"
 
-        await self.common.edit_torrent(meta, self.tracker, self.source_flag, torrent_filename=torrent_filename)
+        await self.common.create_torrent_for_upload(meta, self.tracker, self.source_flag, torrent_filename=torrent_filename)
         flags = await self.get_flags(meta)
 
         torrent_file_path = f"{meta['base_dir']}/tmp/{meta['uuid']}/[{self.tracker}].torrent"
@@ -186,11 +186,25 @@ class ANT:
                             meta['tracker_status'][self.tracker]['status_message'] = "data error: ANT json decode error, the API is probably down"
                             return
                         if "Success" not in response_data:
-                            meta['tracker_status'][self.tracker]['status_message'] = f"data error - {response_data}"
+                            meta['tracker_status'][self.tracker]['status_message'] = f"data error: {response_data}"
                         if meta.get('tag', '') and 'HONE' in meta.get('tag', ''):
                             meta['tracker_status'][self.tracker]['status_message'] = f"{response_data} - HONE release, fix tag at ANT"
                         else:
                             meta['tracker_status'][self.tracker]['status_message'] = response_data
+                    elif response.status_code == 400:
+                        if "exact same" in response.text.lower():
+                            folder = f"{meta['base_dir']}/tmp/{meta['uuid']}"
+                            meta['tracker_status'][self.tracker]['status_message'] = (
+                                "data error: The exact same media file already exists on ANT. You must use the website to upload a new version if you wish to trump.\n"
+                                f"Use the files from {folder} to assist with manual upload.\n"
+                                "raw_url image links from the image_data.json file"
+                            )
+                        else:
+                            response_data = {
+                                "error": f"Unexpected status code: {response.status_code}",
+                                "response_content": response.text
+                            }
+                            meta['tracker_status'][self.tracker]['status_message'] = f"data error - {response_data}"
                     elif response.status_code == 502:
                         response_data = {
                             "error": "Bad Gateway",
@@ -235,7 +249,7 @@ class ANT:
 
     async def mediainfo(self, meta):
         if meta.get('is_disc') == 'BDMV':
-            mediainfo = await self.common.get_bdmv_mediainfo(meta, remove=['File size', 'Overall bit rate'])
+            mediainfo = await self.common.get_bdmv_mediainfo(meta, remove=['File size', 'Overall bit rate'], char_limit=100000)
         else:
             mi_path = f"{meta['base_dir']}/tmp/{meta['uuid']}/MEDIAINFO_CLEANPATH.txt"
             async with aiofiles.open(mi_path, 'r', encoding='utf-8') as f:
