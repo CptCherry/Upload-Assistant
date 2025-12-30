@@ -33,6 +33,7 @@ from src.get_desc import gen_desc
 from src.get_tracker_data import get_tracker_data
 from src.languages import process_desc_language
 from src.nfo_link import nfo_link
+from src.qbitwait import Wait
 from src.queuemanage import handle_queue, save_processed_path, process_site_upload_item
 from src.takescreens import disc_screenshots, dvd_screenshots, screenshots
 from src.torrentcreate import create_torrent, create_random_torrents, create_base_from_existing_torrent
@@ -662,6 +663,9 @@ async def process_meta(meta, base_dir, bot=None):
                 await tracker_class.check_image_hosts(meta)
 
         torrent_path = os.path.abspath(f"{meta['base_dir']}/tmp/{meta['uuid']}/BASE.torrent")
+        if meta.get('force_recheck', False):
+            waiter = Wait()
+            await waiter.select_and_recheck_best_torrent(meta, meta['path'], check_interval=5)
         if not os.path.exists(torrent_path):
             reuse_torrent = None
             if meta.get('rehash', False) is False and not meta['base_torrent_created'] and not meta['we_checked_them_all']:
@@ -674,7 +678,7 @@ async def process_meta(meta, base_dir, bot=None):
                 if meta['trackers'] == ['TOS'] and meta['isdir']:
                     console.print("[yellow]Uploading a directory to TOS only, skipping .torrent creation")
                 else:
-                    create_torrent(meta, Path(meta['path']), "BASE")
+                    await create_torrent(meta, Path(meta['path']), "BASE")
             if meta['nohash']:
                 meta['client'] = "none"
 
@@ -683,7 +687,7 @@ async def process_meta(meta, base_dir, bot=None):
             if meta['trackers'] == ['TOS'] and meta['isdir']:
                 console.print("[yellow]Uploading a directory to TOS only, skipping .torrent creation")
             else:
-                create_torrent(meta, Path(meta['path']), "BASE")
+                await create_torrent(meta, Path(meta['path']), "BASE")
 
         if int(meta.get('randomized', 0)) >= 1:
             if not meta['mkbrr']:
@@ -1332,7 +1336,7 @@ async def process_cross_seeds(meta):
 
 async def get_mkbrr_path(meta, base_dir=None):
     try:
-        mkbrr_path = await ensure_mkbrr_binary(base_dir, debug=meta['debug'], version="v1.14.0")
+        mkbrr_path = await ensure_mkbrr_binary(base_dir, debug=meta['debug'], version="v1.18.0")
         return mkbrr_path
     except Exception as e:
         console.print(f"[red]Error setting up mkbrr binary: {e}[/red]")
