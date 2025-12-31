@@ -25,7 +25,7 @@ class TOS(UNIT3D):
         self.upload_url = f'{self.base_url}/api/torrents/upload'
         self.search_url = f'{self.base_url}/api/torrents/filter'
         self.torrent_url = f'{self.base_url}/torrents/'
-        self.banned_groups = ['FL3ER', 'SUNS3T', 'WoLFHD', 'EXTREME']
+        self.banned_groups = ['FL3ER', 'SUNS3T', 'WoLFHD', 'EXTREME', 'Slay3R']
         pass
 
     async def get_category_id(self, meta):
@@ -95,7 +95,6 @@ class TOS(UNIT3D):
 
     async def upload(self, meta, disctype):
         data = await self.get_data(meta)
-        torrent_file_path = f"{meta['base_dir']}/tmp/{meta['uuid']}/[{self.tracker}].torrent"
 
         # Set exclusive flag
         if meta['exclusive'] == True:
@@ -104,6 +103,7 @@ class TOS(UNIT3D):
         if meta['isdir']:
             # As TOS want us to keep directory at upload and upload NFO file, we need to generate a new .torrent
             console.print("[yellow]Uploading a full directory to TOS, generating a new .torrent")
+            torrent_file_path = f"{meta['base_dir']}/tmp/{meta['uuid']}/[{self.tracker}].torrent"
 
             # Use Torf to create torrent as we can change filelist easily
             from data.config import config
@@ -122,7 +122,7 @@ class TOS(UNIT3D):
                 for root, dirs, files in os.walk(path):
                     initial_size += sum(os.path.getsize(os.path.join(root, f)) for f in files if os.path.isfile(os.path.join(root, f)))
 
-            piece_size = calculate_piece_size(initial_size, 32768, 134217728, [], meta)
+            piece_size = calculate_piece_size(initial_size, 32768, 134217728, meta)
 
             new_torrent = CustomTorrent(
                 meta=meta,
@@ -144,7 +144,8 @@ class TOS(UNIT3D):
 
         else:
             console.print("[green]Uploading a single file to TOS, editing already created .torrent")
-            await self.common.edit_torrent(meta, self.tracker, self.source_flag)
+            torrent_file_path = f"{meta['base_dir']}/tmp/{meta['uuid']}/BASE.torrent"
+            await self.common.create_torrent_for_upload(meta, self.tracker, self.source_flag)
 
 
         # normal upload function from UNITED.py
@@ -157,48 +158,101 @@ class TOS(UNIT3D):
 
         if meta['debug'] is False:
             response_data = {}
-            try:
-                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                    response = await client.post(url=self.upload_url, files=files, data=data, headers=headers, params=params)
-                    response.raise_for_status()
+            max_retries = 2
+            retry_delay = 5
+            timeout = 10.0
 
-                    response_data = response.json()
-                    meta['tracker_status'][self.tracker]['status_message'] = await self.process_response_data(response_data)
-                    torrent_id = await self.get_torrent_id(response_data)
+            for attempt in range(max_retries):
+                try:
+                    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                        response = await client.post(url=self.upload_url, files=files, data=data, headers=headers, params=params)
+                        response.raise_for_status()
 
-                    meta['tracker_status'][self.tracker]['torrent_id'] = torrent_id
-                    await self.common.add_tracker_torrent(
-                        meta,
-                        self.tracker,
-                        self.source_flag,
-                        self.announce_url,
-                        self.torrent_url + torrent_id,
-                        headers=headers,
-                        params=params,
-                        downurl=response_data['data']
-                    )
+                        response_data = response.json()
+                        meta['tracker_status'][self.tracker]['status_message'] = await self.process_response_data(response_data)
+                        torrent_id = await self.get_torrent_id(response_data)
 
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 403:
-                    meta['tracker_status'][self.tracker]['status_message'] = (
-                        "data error: Forbidden (403). This may indicate that you do not have upload permission."
-                    )
-                elif e.response.status_code == 302:
-                    meta['tracker_status'][self.tracker]['status_message'] = (
-                        "data error: Redirect (302). This may indicate a problem with authentication. Please verify that your API key is valid."
-                    )
-                else:
-                    meta['tracker_status'][self.tracker]['status_message'] = f'data error: HTTP {e.response.status_code} - {e.response.text}'
-            except httpx.TimeoutException:
-                meta['tracker_status'][self.tracker]['status_message'] = 'data error: Request timed out after 10 seconds'
-            except httpx.RequestError as e:
-                meta['tracker_status'][self.tracker]['status_message'] = f'data error: Unable to upload. Error: {e}.\nResponse: {response_data}'
-            except Exception as e:
-                meta['tracker_status'][self.tracker]['status_message'] = f'data error: It may have uploaded, go check. Error: {e}.\nResponse: {response_data}'
-                return
+                        meta['tracker_status'][self.tracker]['torrent_id'] = torrent_id
+                        await self.common.download_tracker_torrent(
+                            meta,
+                            self.tracker,
+                            headers=headers,
+                            params=params,
+                            downurl=response_data['data']
+                        )
+                        break  # Success, exit retry loop
+
+                except httpx.HTTPStatusError as e:
+                    # Check if upload already exists (can happen after timeout)
+                    if "The name has already been taken" in e.response.text or "The info hash has already been taken" in e.response.text:
+                        try:
+                            error_data = e.response.json()
+                            existing_torrent = error_data.get('data', {}).get('existing_torrent', {})
+                            torrent_id = str(existing_torrent.get('existing_id', ''))
+                            download_url = existing_torrent.get('download_url', '')
+
+                            if torrent_id and download_url:
+                                meta['tracker_status'][self.tracker]['status_message'] = (
+                                    "Found the uploaded torrent (it was already uploaded successfully)."
+                                )
+                                meta['tracker_status'][self.tracker]['torrent_id'] = torrent_id
+                                await self.common.download_tracker_torrent(
+                                    meta,
+                                    self.tracker,
+                                    headers=headers,
+                                    params=params,
+                                    downurl=download_url
+                                )
+                                break  # Success, exit retry loop
+                            else:
+                                console.print(f'[yellow]{self.tracker}: Could not extract existing torrent info from error response[/yellow]')
+                        except Exception as parse_error:
+                            console.print(f'[yellow]{self.tracker}: Error parsing existing torrent response: {parse_error}[/yellow]')
+
+                    if e.response.status_code in [403, 302]:
+                        # Don't retry auth/permission errors
+                        if e.response.status_code == 403:
+                            meta['tracker_status'][self.tracker]['status_message'] = (
+                                "data error: Forbidden (403). This may indicate that you do not have upload permission."
+                            )
+                        else:
+                            meta['tracker_status'][self.tracker]['status_message'] = (
+                                "data error: Redirect (302). This may indicate a problem with authentication. Please verify that your API key is valid."
+                            )
+                        break  # Don't retry
+                    else:
+                        # Retry other HTTP errors
+                        if attempt < max_retries - 1:
+                            console.print(f'[yellow]{self.tracker}: HTTP {e.response.status_code} error, retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})[/yellow]')
+                            await asyncio.sleep(retry_delay)
+                            continue
+                        else:
+                            # Final attempt failed
+                            if e.response.status_code == 520:
+                                meta['tracker_status'][self.tracker]['status_message'] = (
+                                    "data error: Error (520). This is probably a cloudflare issue on the tracker side."
+                                )
+                            else:
+                                meta['tracker_status'][self.tracker]['status_message'] = f'data error: HTTP {e.response.status_code} - {e.response.text}'
+                except httpx.TimeoutException:
+                    if attempt < max_retries - 1:
+                        timeout = timeout * 2.00  # Increase timeout by 100% for next retry
+                        console.print(f'[yellow]{self.tracker}: Request timed out, retrying in {retry_delay} seconds with {timeout}s timeout... (attempt {attempt + 1}/{max_retries})[/yellow]')
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    else:
+                        meta['tracker_status'][self.tracker]['status_message'] = 'data error: Request timed out after multiple attempts'
+                except httpx.RequestError as e:
+                    if attempt < max_retries - 1:
+                        console.print(f'[yellow]{self.tracker}: Request error, retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})[/yellow]')
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    else:
+                        meta['tracker_status'][self.tracker]['status_message'] = f'data error: Unable to upload. Error: {e}.\nResponse: {response_data}'
+                except Exception as e:
+                    meta['tracker_status'][self.tracker]['status_message'] = f'data error: It may have uploaded, go check. Error: {e}.\nResponse: {response_data}'
+                    return
         else:
             console.print(f'[cyan]{self.tracker} Request Data:')
             console.print(data)
             meta['tracker_status'][self.tracker]['status_message'] = f'Debug mode enabled, not uploading: {self.tracker}.'
-
-        # console.print(meta)
