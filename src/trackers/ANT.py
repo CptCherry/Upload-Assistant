@@ -346,6 +346,10 @@ class ANT:
             meta['skipping'] = "ANT"
             return []
 
+        if meta['valid_mi'] is False:
+            console.print(f"[bold red]No unique ID in mediainfo, skipping {self.tracker} upload.")
+            return False
+
         dupes = []
         params = {
             'apikey': self.config['TRACKERS'][self.tracker]['api_key'].strip(),
