@@ -39,7 +39,7 @@ class TOS(UNIT3D):
                     'TV': '7',
                 }.get(meta['category'], '0')
         else:
-            if meta['category'] == 'TV':
+            if meta['category'] == 'TV' and meta['tv_pack']:
                 category_id = '8'
             else:
                 category_id = {
