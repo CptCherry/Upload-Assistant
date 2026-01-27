@@ -86,22 +86,38 @@ class TOS(UNIT3D):
                 base_name = base_name.replace(old, new)
 
         # Hook into this function for torrent file recreation if needed
-        if meta.get('keep_nfo', False):
-            tracker_config = self.config['TRACKERS'].get(self.tracker, {})
-            tracker_url = str(tracker_config.get('announce_url', "https://fake.tracker")).strip()
+        if meta.get("keep_nfo", False):
+            tracker_config = self.config["TRACKERS"].get(self.tracker, {})
+            tracker_url = str(
+                tracker_config.get("announce_url", "https://fake.tracker")
+            ).strip()
             torrent_create = f"[{self.tracker}]"
             try:
-                cooldown = int(self.config.get('DEFAULT', {}).get('rehash_cooldown', 0) or 0)
+                cooldown = int(
+                    self.config.get("DEFAULT", {}).get("rehash_cooldown", 0) or 0
+                )
             except (ValueError, TypeError):
                 cooldown = 0
             if cooldown > 0:
                 await asyncio.sleep(cooldown)  # Small cooldown before rehashing
 
-            await TorrentCreator.create_torrent(meta, str(meta['path']), torrent_create, tracker_url=tracker_url)
+            await create_torrent(meta, str(meta['path']), torrent_create, tracker_url=tracker_url)
 
         return {"name": base_name}
 
+
+
     async def get_additional_checks(self, meta: dict[str, Any]) -> bool:
+        # Check if filename contains "tsundere" - skip upload if found
+        filename = meta.get("uuid", "").lower()
+        path = str(meta.get("path", "")).lower()
+
+        if "tsundere" in filename or "tsundere" in path:
+            console.print(
+                f"[red]{self.tracker}: Skipping upload - 'tsundere' detected in filename or path.[/red]"
+            )
+            return False
+
         # Check language requirements: must be French audio OR original audio with French subtitles
         french_languages = ["french", "fre", "fra", "fr", "français", "francais"]
         if not await self.common.check_language_requirements(
@@ -113,7 +129,9 @@ class TOS(UNIT3D):
             require_both=False,
             original_language=True,
         ):
-            console.print(f"[bold red]Language requirements not met for {self.tracker}.[/bold red]")
+            console.print(
+                f"[bold red]Language requirements not met for {self.tracker}.[/bold red]"
+            )
             return False
 
         # Check if it's a Scene release without NFO - TOS requires NFO for Scene releases
